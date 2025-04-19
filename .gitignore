@@ -4,3 +4,5 @@
 *.spec
 /__pycache__
 /venv
+/app/__pycache__
+/sender/__pycache__

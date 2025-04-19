@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from sender import senderModelKeldaria
+from sender.sender import senderModelKeldaria
 
 
 class KeldariaTool:
