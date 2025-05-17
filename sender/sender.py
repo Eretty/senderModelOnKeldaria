@@ -4,6 +4,9 @@ from bs4 import BeautifulSoup
 import urllib
 import logging
 import json
+import configparser
+import os
+import hashlib
 
 
 class senderModelKeldaria:
@@ -11,13 +14,31 @@ class senderModelKeldaria:
 
     def __init__(self) -> None:
         self.base_url: str = "http://keldaria.fr"
-        self.login: str = "sender"
-        self.password: str = "azerty1234"
+        self.login: str = ""
+        self.password: str = ""
 
-        self.cookies: dict = self.__login()
+        # Chemin vers le fichier
+        self.config_filename: str = "config.ini"
 
-    def __login(self) -> str:
+        # Chemin vers le cache
+        self.cache_filename: str = ".cache.json"
+
+        self.__generate_cache_file()
+        self.__generate_config_file()
+
+        self.cookies: dict = self.reload_auth()
+
+    def reload_auth(self):
+        """Recharge les identifiants depuis le fichier config et relance la connexion."""
+        self.cookies = self.login_to_website()
+
+    def login_to_website(self) -> str:
         """Se connecte au site internet et récupères les cookies pour se connecter à son compte."""
+
+        self.get_identifiant_by_config()
+        if not self.login or not self.password:
+            logging.info("Aucun nom d'utilisateur ou de mot de passe n'a été trouvé.")
+            return
 
         # Envoye les identifiants du compte.
         res = requests.post(
@@ -45,6 +66,73 @@ class senderModelKeldaria:
             raise Exception("Impossible de pouvoir se connecter.")
         return res.cookies
 
+    def get_identifiant_by_config(self):
+        """ " Récupères l'identifiant et le mot de passe depuis le fichier de congifuration."""
+
+        config = configparser.ConfigParser()
+        config.read(self.config_filename)
+        self.login = config.get("user", "login", fallback="")
+        self.password = config.get("user", "password", fallback="")
+
+    def clear_cache(self):
+        with open(self.cache_filename, "w") as f:
+            f.write("{}")
+
+    def __generate_cache_file(self) -> None:
+        if not os.path.exists(self.cache_filename):
+            with open(self.cache_filename, "w") as f:
+                f.write("{}")  # Fichier JSON vide valide
+
+    def __generate_config_file(self) -> None:
+        """Vérifie l'existance du fichier de configuration."""
+        if not os.path.exists(self.config_filename):
+            config = configparser.ConfigParser()
+
+            # Ajoute des sections et des options
+            config["user"] = {"login": "", "password": ""}
+
+            # Sauvegarder le fichier de configuration
+            config.write(open(self.config_filename, "w"))
+
+    def __get_hash_md5_path(self, path: str) -> str:
+        hash_md5 = hashlib.md5()
+        with open(path, "rb") as f:
+            for bloc in iter(lambda: f.read(4096), b""):
+                hash_md5.update(bloc)
+        return hash_md5.hexdigest()
+
+    def __check_and_get_url_file(self, path: str) -> str:
+        """ """
+
+        # Génère une fichier contenant les caches.
+        self.__generate_cache_file()
+
+        # Vérifie si le chemin du document est dans le cache
+        with open(self.cache_filename, "r") as f:
+            cache: dict = json.load(f)
+
+            # Retourne l'url de la texture si tout les documents sont
+            if cache.get(path) and self.__get_hash_md5_path(path) == cache[path]["md5"]:
+                return cache[path]["url"]
+        return None
+
+    def __save_url_file(self, path: str, url_texture: str) -> None:
+        """ """
+
+        # Génère une fichier contenant les caches.
+        self.__generate_cache_file()
+
+        # Vérifie si le chemin du document est dans le cache
+        try:
+            with open(self.cache_filename, "r") as f:
+                cache = json.load(f)
+        except Exception:
+            cache = {}
+        cache.update(
+            {path: {"url": url_texture, "md5": self.__get_hash_md5_path(path)}}
+        )
+        open(self.cache_filename, "w+").write(json.dumps(cache))
+
     def __send_and_get_url_texture(self, path: str) -> str:
         """Envoyes une image au site et récupères l'url de la texture."""
 
@@ -64,6 +152,11 @@ class senderModelKeldaria:
         else:
             raise Exception("Le type du document n'est pas reconnu.")
 
+        url_texture: str = None
+        url_texture = self.__check_and_get_url_file(path=path)
+        if url_texture:
+            return url_texture
+
         # Envoye l'image au site.
         res = requests.post(
             url=urllib.parse.urljoin(self.base_url, "/index.php"),
@@ -78,9 +171,12 @@ class senderModelKeldaria:
         image = soup.find("div", {"id": "image"})
         if not image:
             logging.error("Impossible de charger l'image")
-            self.cookies = self.__login()
+            self.cookies = self.login_to_website()
             return self.__send_and_get_url_texture(path=path)
-        return image.find("input").get("value")
+
+        url_texture = image.find("input").get("value")
+        self.__save_url_file(path=path, url_texture=url_texture)
+        return url_texture
 
     def __send_and_get_url_model(self, text: str) -> str:
         """ """
@@ -99,7 +195,7 @@ class senderModelKeldaria:
         editor = soup.find("input", {"type": "text"})
         if not editor:
             logging.error("Impossible de charger l'url du model")
-            self.cookies = self.__login()
+            self.cookies = self.login_to_website()
             return self.__send_and_get_url_model(text=text)
         return editor.get("value")
 

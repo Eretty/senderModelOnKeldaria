@@ -16,3 +16,6 @@ Un simple utilitaire pour simplifier la mise en ligne et/ou la modification de m
 ## Cas connu(s)
 - L'executable `.exe` est reconnu comme un virus.
     > Cela est dû au fait qu'il n'y ait pas de certification pour le logiciel mais ce n'est pas un virus. Voyez avec votre anti-virus pour autoriser le logiciel.
+- La dépendance `Tinker` n'est pas dans l'environnement:
+    > Ubuntu/linux:
+    ``` sudo apt-get install python3-tk ```
