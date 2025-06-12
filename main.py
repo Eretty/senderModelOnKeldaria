@@ -14,20 +14,32 @@ class KeldariaTool:
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
+        self.auth_frame = ttk.Frame(self.notebook)
         self.obj_frame = ttk.Frame(self.notebook)
         self.json_frame = ttk.Frame(self.notebook)
         self.cache_frame = ttk.Frame(self.notebook)
-        self.auth_frame = ttk.Frame(self.notebook)
 
+        self.notebook.add(self.auth_frame, text="Identifiants")
         self.notebook.add(self.obj_frame, text="OBJ")
         self.notebook.add(self.json_frame, text="JSON")
         self.notebook.add(self.cache_frame, text="Cache")
-        self.notebook.add(self.auth_frame, text="Identifiants")
 
+        self.setup_auth_tab()
         self.setup_obj_tab()
         self.setup_json_tab()
         self.setup_cache_tab()
-        self.setup_auth_tab()
+
+    def setup_auth_tab(self):
+        ttk.Label(self.auth_frame, text="Nom d'utilisateur:").pack(pady=5)
+        self.login_var = tk.StringVar()
+        ttk.Entry(self.auth_frame, textvariable=self.login_var, width=40).pack(pady=5)
+
+        ttk.Label(self.auth_frame, text="Mot de passe:").pack(pady=5)
+        self.password_var = tk.StringVar()
+        ttk.Entry(self.auth_frame, textvariable=self.password_var, width=40, show="*").pack(pady=5)
+
+        ttk.Button(self.auth_frame, text="Sauvegarder", command=self.save_auth).pack(pady=10)
+        self.load_auth()
 
     def setup_obj_tab(self):
         ttk.Label(self.obj_frame, text="Fichier OBJ:").pack(pady=5)
@@ -77,18 +89,6 @@ class KeldariaTool:
         ttk.Button(self.cache_frame, text="Vider le cache", command=self.clear_cache_gui).pack(pady=5)
         self.load_cache()
 
-    def setup_auth_tab(self):
-        ttk.Label(self.auth_frame, text="Nom d'utilisateur:").pack(pady=5)
-        self.login_var = tk.StringVar()
-        ttk.Entry(self.auth_frame, textvariable=self.login_var, width=40).pack(pady=5)
-
-        ttk.Label(self.auth_frame, text="Mot de passe:").pack(pady=5)
-        self.password_var = tk.StringVar()
-        ttk.Entry(self.auth_frame, textvariable=self.password_var, width=40, show="*").pack(pady=5)
-
-        ttk.Button(self.auth_frame, text="Sauvegarder", command=self.save_auth).pack(pady=10)
-        self.load_auth()
-
     def browse_obj(self):
         path = filedialog.askopenfilename(filetypes=[("OBJ Files", "*.obj")])
         if path:
@@ -104,7 +104,16 @@ class KeldariaTool:
         if path:
             var.set(path)
 
+    def check_auth(self):
+        """Vérifie que login et password sont renseignés avant génération de commande."""
+        if not self.login_var.get() or not self.password_var.get():
+            messagebox.showerror("Erreur", "Veuillez renseigner votre identifiant et mot de passe dans l'onglet Identifiants avant de générer une commande.")
+            return False
+        return True
+
     def generate_obj_command(self):
+        if not self.check_auth():
+            return
         try:
             command = self.sender.get_command_obj(self.obj_path.get(), self.texture_path.get())
             self.obj_command_box.delete("1.0", tk.END)
@@ -135,6 +144,8 @@ class KeldariaTool:
             messagebox.showerror("Erreur", str(e))
 
     def generate_json_command(self):
+        if not self.check_auth():
+            return
         try:
             textures_paths = {k: v.get() for k, v in self.texture_entries.items()}
             uploaded = {k: self.sender.send_texture(v) for k, v in textures_paths.items() if v}
@@ -173,9 +184,10 @@ class KeldariaTool:
             with open(self.sender.config_filename, "w") as f:
                 config.write(f)
             self.sender.reload_auth()
-            messagebox.showinfo("Succès", "Connexion réussite.")
+            messagebox.showinfo("Succès", "Connexion réussie.")
         except Exception as e:
             messagebox.showerror("Erreur", "Impossible de se connecter.")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
